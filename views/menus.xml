@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <data>
+        <menuitem id="menu_gym_root"
+                  name="Gym Management"
+                  web_icon="gym_management,static/description/icon.png"
+                  sequence="1"/>
+
+        <menuitem id="menu_gym_operations"
+                  name="Vận Hành"
+                  parent="menu_gym_root"
+                  sequence="10"/>
+
+            <menuitem id="menu_gym_membership"
+                      name="Thẻ Hội Viên"
+                      parent="menu_gym_operations"
+                      action="action_gym_membership"
+                      sequence="1"/>
+
+        <menuitem id="menu_gym_configuration"
+                  name="Cấu Hình"
+                  parent="menu_gym_root"
+                  groups="group_gym_manager" 
+                  sequence="100"/>
+
+            <record id="action_gym_product" model="ir.actions.act_window">
+                <field name="name">Gói Tập &amp; Dịch Vụ</field>
+                <field name="res_model">product.template</field>
+                <field name="view_mode">list,form,kanban</field>
+                <field name="domain">[('gym_product_type', '!=', False)]</field>
+                <field name="context">{'default_gym_product_type': 'membership', 'default_detailed_type': 'service'}</field>
+            </record>
+
+            <menuitem id="menu_gym_product"
+                      name="Gói Tập"
+                      parent="menu_gym_configuration"
+                      action="action_gym_product"
+                      sequence="1"/>
+
+    </data>
+</odoo>
