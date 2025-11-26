@@ -6,16 +6,13 @@
             <field name="model">product.template</field>
             <field name="inherit_id" ref="product.product_template_only_form_view"/>
             <field name="arch" type="xml">
-                
                 <xpath expr="//notebook" position="inside">
-                    
                     <page string="Gym Configuration" name="gym_config">
                         <group>
                             <group>
                                 <field name="gym_product_type" widget="radio"/>
                             </group>
                         </group>
-
                         <group string="Membership Settings" 
                                invisible="gym_product_type != 'membership'">
                             <group>
@@ -26,7 +23,6 @@
                                 </div>
                             </group>
                         </group>
-
                         <group string="Service Pack Settings" 
                                invisible="gym_product_type != 'service_pack'">
                             <group>
@@ -40,13 +36,11 @@
                         </group>
                     </page>
                 </xpath>
-
                 <xpath expr="//div[@name='options']" position="inside">
                     <span class="d-inline-block">
                         <field name="gym_product_type" readonly="1" invisible="not gym_product_type"/>
                     </span>
                 </xpath>
-
             </field>
         </record>
     </data>

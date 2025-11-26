@@ -9,25 +9,72 @@ class GymMembership(models.Model):
     _order = 'id desc'
 
     name = fields.Char(string='Mã thẻ', required=True, copy=False, readonly=True, default=lambda self: _('New'))
-    partner_id = fields.Many2one('res.partner', string='Hội viên', required=True)
+    partner_id = fields.Many2one('res.partner', string='Hội viên', required=True, tracking=True)
     active = fields.Boolean(default=True, string="Còn hiệu lực")
+
+    product_id = fields.Many2one('product.product', string='Gói đăng ký', required=True, tracking=True)
+    start_date = fields.Date(string='Ngày bắt đầu', default=fields.Date.context_today, required=True, tracking=True)
+    end_date = fields.Date(
+        string='Ngày hết hạn', 
+        compute='_compute_gym_info', 
+        store=True, 
+        readonly=False, 
+        tracking=True
+    )
     
-    product_id = fields.Many2one('product.product', string='Gói đăng ký', required=True)
-    
-    start_date = fields.Date(string='Ngày bắt đầu', default=fields.Date.context_today)
-    end_date = fields.Date(string='Ngày hết hạn')
-    
-    # --- ĐÃ XÓA group_expand='_expand_states' ĐỂ CHẠY ĐƯỢC ---
+    total_sessions = fields.Integer(
+        string='Tổng buổi', 
+        compute='_compute_gym_info', 
+        store=True, 
+        readonly=False
+    )
+    remaining_sessions = fields.Integer(string='Buổi còn lại', readonly=True)
+
     state = fields.Selection([
         ('draft', 'Nháp'),
         ('active', 'Đang hoạt động'),
         ('frozen', 'Đang bảo lưu'),
         ('expired', 'Hết hạn'),
         ('cancelled', 'Đã hủy'),
-    ], string='Trạng thái', default='draft')
+    ], string='Trạng thái', default='draft', tracking=True)
 
-    total_sessions = fields.Integer(string='Tổng buổi', default=0)
-    remaining_sessions = fields.Integer(string='Buổi còn lại', readonly=True)
+    @api.depends('product_id', 'start_date')
+    def _compute_gym_info(self):
+        for rec in self:
+            end_date = rec.start_date
+            total_sessions = 0
+            
+            if rec.product_id and rec.start_date:
+                product = rec.product_id
+                
+                if product.gym_product_type == 'membership':
+                    duration = product.gym_duration
+                    unit = product.gym_duration_unit
+                    if duration > 0:
+                        if unit == 'day':
+                            end_date = rec.start_date + relativedelta(days=duration)
+                        elif unit == 'month':
+                            end_date = rec.start_date + relativedelta(months=duration)
+                        elif unit == 'year':
+                            end_date = rec.start_date + relativedelta(years=duration)
+                
+                elif product.gym_product_type == 'service_pack':
+                    total_sessions = product.gym_session_count
+                    duration = product.gym_duration
+                    if duration > 0:
+                        unit = product.gym_duration_unit
+                        if unit == 'day':
+                            end_date = rec.start_date + relativedelta(days=duration)
+                        elif unit == 'month':
+                            end_date = rec.start_date + relativedelta(months=duration)
+                        elif unit == 'year':
+                            end_date = rec.start_date + relativedelta(years=duration)
+            
+            rec.end_date = end_date
+            rec.total_sessions = total_sessions
+            
+            if not rec.id or rec.remaining_sessions == 0:
+                rec.remaining_sessions = total_sessions
 
     @api.model_create_multi
     def create(self, vals_list):
@@ -35,13 +82,6 @@ class GymMembership(models.Model):
             if vals.get('name', _('New')) == _('New'):
                 vals['name'] = self.env['ir.sequence'].next_by_code('gym.membership') or _('New')
         return super(GymMembership, self).create(vals_list)
-
-    @api.onchange('product_id', 'start_date')
-    def _onchange_product_duration(self):
-        if self.product_id and self.start_date:
-            # Logic đơn giản hóa để tránh lỗi field bên product chưa có
-            # Tạm thời cộng cứng 30 ngày để test luồng chạy
-            self.end_date = self.start_date + relativedelta(days=30)
 
     def action_confirm(self):
         self.write({'state': 'active'})
@@ -51,3 +91,10 @@ class GymMembership(models.Model):
 
     def action_freeze(self):
         self.write({'state': 'frozen'})
+        
+    @api.model
+    def _cron_expire_memberships(self):
+        today = fields.Date.today()
+        # Tìm các thẻ đang Active mà đã quá hạn
+        expired = self.search([('state', '=', 'active'), ('end_date', '<', today)])
+        expired.write({'state': 'expired'})
